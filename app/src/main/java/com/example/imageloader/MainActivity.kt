@@ -135,31 +135,58 @@ class LoadableImageView: RelativeLayout {
     constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int) : super(context, attrs, defStyleAttr)
 
     var url = ""
-    var imageLoader = ImageLoader({},"")
+    var imageLoader: ViewImageLoader? = null
 
     fun setup(imageSrc: MainActivity.ImageSrc) {
         textViewCell.setText(imageSrc.description)
 
-        imageLoader.cancel(true)
+        imageLoader?.cancel(true)
 
         progressBar.setVisibility(View.VISIBLE)
         imageView2.setImageResource(0)
 
         this.url = imageSrc.url
 
-        println(this.url)
 
-        this.imageLoader = ImageLoader({
-            imageView2.setImageBitmap(it)
-            progressBar.setVisibility(View.INVISIBLE)
-        }, this.url)
+        this.imageLoader = ViewImageLoader({bitmap, weakReference ->
+            val loadableImageView = weakReference.get()
 
-        imageLoader.execute()
+            if (loadableImageView != null) {
+                loadableImageView.imageView2.setImageBitmap(bitmap)
+                loadableImageView.progressBar.setVisibility(View.INVISIBLE)
+            }
+        }, this.url, WeakReference(this))
+
+
+        imageLoader?.execute()
     }
 
 }
 
+class ViewImageLoader(val callback: (Bitmap, WeakReference<LoadableImageView>) -> Unit, val url: String, val view: WeakReference<LoadableImageView>): AsyncTask<Void, Void, Bitmap>() {
+
+    override fun doInBackground(vararg params: Void?): Bitmap {
+        val urlForConnection = URL(url)
+        val conncetion  = urlForConnection.openConnection() as HttpURLConnection
+        conncetion.doInput = true
+        conncetion.connect()
+
+        val inputStream = conncetion.inputStream
+
+        SystemClock.sleep(TimeUnit.SECONDS.toMillis(1))
+
+        return BitmapFactory.decodeStream(inputStream)
+    }
+
+    override fun onPostExecute(result: Bitmap?) {
+        if (result != null) {
+            callback(result, view)
+        }
+    }
+}
+
 class ImageLoader(val callback: (Bitmap) -> Unit, val url: String): AsyncTask<Void, Void, Bitmap>() {
+
     override fun doInBackground(vararg params: Void?): Bitmap {
         val urlForConnection = URL(url)
         val conncetion  = urlForConnection.openConnection() as HttpURLConnection
@@ -179,3 +206,4 @@ class ImageLoader(val callback: (Bitmap) -> Unit, val url: String): AsyncTask<Vo
         }
     }
 }
+//
